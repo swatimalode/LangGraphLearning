@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+    <title>LangGraph Learning Agent</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 40px auto;
+    }
+
+    #chat {
+        height: 500px;
+        border: 1px solid #ccc;
+        padding: 15px;
+        overflow-y: auto;
+        margin-bottom: 10px;
+    }
+
+    .user {
+        margin: 10px 0;
+        text-align: right;
+    }
+
+    .assistant {
+        margin: 10px 0;
+        text-align: left;
+    }
+
+    .message {
+        display: inline-block;
+        padding: 10px;
+        border-radius: 8px;
+        max-width: 70%;
+    }
+
+    .user .message {
+        background: #ddd;
+    }
+
+    .assistant .message {
+        background: #eee;
+    }
+
+    #input-area {
+        display: flex;
+        gap: 10px;
+    }
+
+    #message {
+        flex: 1;
+        padding: 10px;
+    }
+
+    button {
+        padding: 10px 20px;
+    }
+</style>
+
+</head>
+
+<body>
+
+<h2>LangGraph Learning Agent</h2>
+
+<div id="chat"></div>
+
+<div id="input-area">
+    <input
+        id="message"
+        type="text"
+        placeholder="Ask something..."
+    />
+
+    <button onclick="sendMessage()">
+        Send
+    </button>
+</div>
+
+<script>
+    async function sendMessage() {
+
+        const input = document.getElementById("message");
+        const chat = document.getElementById("chat");
+
+        const message = input.value.trim();
+
+        if (!message) {
+            return;
+        }
+
+        // Show user message
+        chat.innerHTML += `
+            <div class="user">
+                <div class="message">${message}</div>
+            </div>
+        `;
+
+        input.value = "";
+
+        // Create assistant message
+        const assistantDiv = document.createElement("div");
+        assistantDiv.className = "assistant";
+
+        const assistantMessage = document.createElement("div");
+        assistantMessage.className = "message";
+
+        assistantDiv.appendChild(assistantMessage);
+        chat.appendChild(assistantDiv);
+
+        try {
+
+            const response = await fetch("/chat", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    message: message
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error: ${response.status}`);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+
+            let assistantText = "";
+
+            while (true) {
+
+                const { value, done } = await reader.read();
+
+                if (done) {
+                    break;
+                }
+
+                const text = decoder.decode(value, { stream: true });
+
+                console.log("Received:", text);
+
+                assistantText += text;
+
+                assistantMessage.innerHTML = marked.parse(assistantText);
+
+                chat.scrollTop = chat.scrollHeight;
+            }
+
+        } catch (error) {
+
+            console.error("Error:", error);
+
+            assistantMessage.textContent =
+                "Error: " + error.message;
+        }
+    }
+    // Press Enter to send
+    document.getElementById("message").addEventListener(
+        "keydown",
+        function(event) {
+
+            if (event.key === "Enter") {
+                sendMessage();
+            }
+
+        }
+    );
+
+</script>
+
+</body>
+</html>
