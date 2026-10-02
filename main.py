@@ -1,10 +1,10 @@
 from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import ToolNode
 from langgraph.graph import StateGraph, START, END, MessagesState
-from tool_resistry import tool_registry
+from tool_registry import tool_registry
 from config import MODEL, BASE_URL, API_KEY
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Form, File, UploadFile
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -58,36 +58,39 @@ graph.add_edge("tools", "llm")
 
 CompiledStateGraph = graph.compile()
 
-def chat(message):
-    result = CompiledStateGraph.invoke({
-        "messages": [
-            ("user", message)
-        ]
-    })
+def chat(message: str, file: UploadFile | None = None):
+    print("MESSAGE:", message)
 
-    return result["messages"][-1].content
+    if file:
+        print("FILE:", file.filename)
 
-# def chat(message):
+        response = f"""
+            Message received: {message}
 
-#     print("USER:", message)
+            File received: {file.filename if file else "No file"}
+        """
 
-#     llm_with_tools = llm.bind_tools(tool_registry)
+        return response
+    else:
+        result = CompiledStateGraph.invoke({
+            "messages": [
+                ("user", message)
+            ]
+        })
 
-#     response = llm_with_tools.stream(message)
-
-#     for chunk in response:
-#         print("CHUNK:", chunk)
-#         if chunk.content:
-#             yield chunk.content
+        return result["messages"][-1].content
 
 
 @app.post("/chat")
-def chat_endpoint(request: ChatRequest):
-
-    print("REQUEST:", request.message)
-
+def chat_endpoint(
+    message: str = Form(""),
+    file: UploadFile | None = File(None)
+):
     return StreamingResponse(
-        chat(request.message),
+        chat(
+            message=message,
+            file=file
+        ),
         media_type="text/plain"
     )
 

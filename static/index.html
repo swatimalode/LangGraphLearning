@@ -1,176 +1,129 @@
 <!DOCTYPE html>
 
-<html>
+<html lang="en">
 <head>
-    <title>LangGraph Learning Agent</title>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-<style>
-    body {
-        font-family: Arial, sans-serif;
-        max-width: 800px;
-        margin: 40px auto;
-    }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    #chat {
-        height: 500px;
-        border: 1px solid #ccc;
-        padding: 15px;
-        overflow-y: auto;
-        margin-bottom: 10px;
-    }
+```
+<title>Swati AI Assistant</title>
 
-    .user {
-        margin: 10px 0;
-        text-align: right;
-    }
-
-    .assistant {
-        margin: 10px 0;
-        text-align: left;
-    }
-
-    .message {
-        display: inline-block;
-        padding: 10px;
-        border-radius: 8px;
-        max-width: 70%;
-    }
-
-    .user .message {
-        background: #ddd;
-    }
-
-    .assistant .message {
-        background: #eee;
-    }
-
-    #input-area {
-        display: flex;
-        gap: 10px;
-    }
-
-    #message {
-        flex: 1;
-        padding: 10px;
-    }
-
-    button {
-        padding: 10px 20px;
-    }
-</style>
+<link rel="stylesheet" href="/style.css">
+```
 
 </head>
 
 <body>
 
-<h2>LangGraph Learning Agent</h2>
+<div class="app">
 
-<div id="chat"></div>
+```
+<header class="header">
+    <h1>Swati AI Assistant</h1>
+</header>
 
-<div id="input-area">
-    <input
-        id="message"
-        type="text"
-        placeholder="Ask something..."
-    />
 
-    <button onclick="sendMessage()">
-        Send
-    </button>
+<main class="chat-container">
+
+    <!-- Chat messages -->
+    <div id="messages" class="messages">
+
+        <div class="message assistant">
+            <div class="bubble">
+                Hello! Ask me anything!
+            </div>
+        </div>
+
+    </div>
+
+
+    <!-- Loading -->
+    <div id="loading" class="loading hidden">
+        Thinking...
+    </div>
+
+
+    <!-- Input area -->
+    <div class="input-area">
+
+        <!-- Selected file -->
+        <div id="selectedFile" class="selected-file hidden">
+
+            <span class="file-icon">
+                📄
+            </span>
+
+            <span id="fileName"></span>
+
+            <button
+                type="button"
+                class="remove-file"
+                onclick="removeFile()"
+            >
+                ×
+            </button>
+
+        </div>
+
+
+        <!-- Upload + text + send -->
+        <div class="chat-input">
+
+            <!-- Hidden file input -->
+            <input
+                type="file"
+                id="fileInput"
+                accept=".pdf,.txt,.doc,.docx"
+                hidden
+            >
+
+
+            <!-- Upload button -->
+            <button
+                type="button"
+                class="upload-button"
+                onclick="document.getElementById('fileInput').click()"
+            >
+                📎 Upload
+            </button>
+
+
+            <!-- Text -->
+            <textarea
+                id="messageInput"
+                placeholder="Ask something..."
+                rows="2"
+            ></textarea>
+
+
+            <!-- Send -->
+            <button
+                type="button"
+                class="send-button"
+                onclick="sendMessage()"
+            >
+                Send
+            </button>
+
+        </div>
+
+
+        <div id="uploadStatus" class="upload-status"></div>
+
+    </div>
+
+</main>
+```
+
 </div>
 
-<script>
-    async function sendMessage() {
+<!-- Markdown renderer -->
 
-        const input = document.getElementById("message");
-        const chat = document.getElementById("chat");
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
-        const message = input.value.trim();
+<!-- Application JS -->
 
-        if (!message) {
-            return;
-        }
-
-        // Show user message
-        chat.innerHTML += `
-            <div class="user">
-                <div class="message">${message}</div>
-            </div>
-        `;
-
-        input.value = "";
-
-        // Create assistant message
-        const assistantDiv = document.createElement("div");
-        assistantDiv.className = "assistant";
-
-        const assistantMessage = document.createElement("div");
-        assistantMessage.className = "message";
-
-        assistantDiv.appendChild(assistantMessage);
-        chat.appendChild(assistantDiv);
-
-        try {
-
-            const response = await fetch("/chat", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    message: message
-                })
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP error: ${response.status}`);
-            }
-
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-
-            let assistantText = "";
-
-            while (true) {
-
-                const { value, done } = await reader.read();
-
-                if (done) {
-                    break;
-                }
-
-                const text = decoder.decode(value, { stream: true });
-
-                console.log("Received:", text);
-
-                assistantText += text;
-
-                assistantMessage.innerHTML = marked.parse(assistantText);
-
-                chat.scrollTop = chat.scrollHeight;
-            }
-
-        } catch (error) {
-
-            console.error("Error:", error);
-
-            assistantMessage.textContent =
-                "Error: " + error.message;
-        }
-    }
-    // Press Enter to send
-    document.getElementById("message").addEventListener(
-        "keydown",
-        function(event) {
-
-            if (event.key === "Enter") {
-                sendMessage();
-            }
-
-        }
-    );
-
-</script>
+<script src="/app.js"></script>
 
 </body>
 </html>
