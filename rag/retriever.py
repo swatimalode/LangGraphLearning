@@ -10,8 +10,15 @@ class DocumentRetriever():
             name='rag_documents'
         )
 
+    def save(self, document_id, content, metadata=None):
+        self.collection.upsert(
+            ids=[document_id],
+            documents=[content],
+            metadatas=[metadata or {}]
+        )
+
     def search(self, query, limit=3):
         return self.collection.query(
-            query_images=[query],
+            query_texts=[query],
             n_results=limit
         )
