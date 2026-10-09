@@ -1,4 +1,5 @@
 from ddgs import DDGS
+from ddgs.exceptions import TimeoutException
 from langchain_core.tools import tool
 
 @tool
@@ -23,10 +24,17 @@ def search(query):
             6. Never claim something is true if the search results do not
             provide sufficient evidence.
     """
-    results = DDGS().text(
-        query,
-        max_results=5
-    )
+    try:
+        results = DDGS().text(
+            query,
+            max_results=5
+        )
+    except TimeoutException:
+        return {
+            "query": query,
+            "results": [],
+            "error": "Web search timed out. Try again later."
+        }
 
     clean_results = []
 
