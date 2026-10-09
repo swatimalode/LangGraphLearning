@@ -9,21 +9,23 @@ from graph.graph import CompiledStateGraph
 app = FastAPI()
 
 
-def chat(message: str, file: UploadFile | None = None):
-
-    print("MESSAGE:", message)
+def chat(message: str, files: list[UploadFile] | None = None):
 
     messages = []
 
-    if file:
+    if files:
+        upload_statuses = []
 
-        upload_status = store(file)
+        for file in files: 
+            upload_status = store(file) 
+            upload_statuses.append(upload_status)
 
         messages.append(
             (
-                "system",
-                f"{upload_status} "
-                "The document is available in the RAG document store."
+                "system", 
+                "The following documents have been uploaded and stored in the RAG document store:\n" 
+                + "\n".join(upload_statuses) + 
+                "\nUse the RAG retrieval tools to answer questions about these documents."
             )
         )
 
@@ -41,13 +43,17 @@ def chat(message: str, file: UploadFile | None = None):
 @app.post("/chat")
 def chat_endpoint(
     message: str = Form(""),
+    files: list[UploadFile] | None = File(None),
     file: UploadFile | None = File(None)
 ):
+    files = list(files or [])
+    if file:
+        files.append(file)
 
     return StreamingResponse(
         chat(
             message=message,
-            file=file
+            files=files
         ),
         media_type="text/plain"
     )

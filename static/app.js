@@ -1,340 +1,225 @@
-const messages = document.getElementById("messages");
-
-const messageInput = document.getElementById("messageInput");
-
-const fileInput = document.getElementById("fileInput");
-
-const selectedFile = document.getElementById("selectedFile");
-
-const fileName = document.getElementById("fileName");
-
-const uploadStatus = document.getElementById("uploadStatus");
-
-const loading = document.getElementById("loading");
-
-
-
+"use strict";
 
 /* =========================
-FILE SELECTION
+   DOM ELEMENTS
+========================= */
+
+const messages = document.getElementById("messages");
+const messageInput = document.getElementById("messageInput");
+const fileInput = document.getElementById("fileInput");
+const selectedFile = document.getElementById("selectedFile");
+const fileName = document.getElementById("fileName");
+const uploadStatus = document.getElementById("uploadStatus");
+const loading = document.getElementById("loading");
+
+let isSending = false;
+let selectedFiles = [];
+
+/* =========================
+   FILE SELECTION
 ========================= */
 
 fileInput.addEventListener("change", function () {
+    const newFiles = Array.from(fileInput.files);
 
-const file = fileInput.files[0];
+    for (const file of newFiles) {
+        const alreadySelected = selectedFiles.some(
+            existingFile =>
+                existingFile.name === file.name &&
+                existingFile.size === file.size &&
+                existingFile.lastModified === file.lastModified
+        );
 
-if (!file) {
-    return;
-}
+        if (!alreadySelected) {
+            selectedFiles.push(file);
+        }
+    }
 
-fileName.textContent = file.name;
+    renderSelectedFiles();
 
-selectedFile.classList.remove("hidden");
-
-uploadStatus.textContent = "File selected";
-
+    // Allow the same picker to be opened again.
+    fileInput.value = "";
 });
 
+function renderSelectedFiles() {
+    if (selectedFiles.length === 0) {
+        fileName.textContent = "";
+        selectedFile.classList.add("hidden");
+        uploadStatus.textContent = "";
+        return;
+    }
 
+    fileName.textContent = selectedFiles
+        .map(file => file.name)
+        .join(", ");
 
+    selectedFile.classList.remove("hidden");
+    uploadStatus.textContent =
+        `${selectedFiles.length} file(s) selected`;
+}
 
 /* =========================
-REMOVE FILE
+   REMOVE SELECTED FILES
 ========================= */
 
 function removeFile() {
-
-fileInput.value = "";
-
-fileName.textContent = "";
-
-selectedFile.classList.add("hidden");
-
-uploadStatus.textContent = "";
-
+    selectedFiles = [];
+    fileInput.value = "";
+    renderSelectedFiles();
 }
 
-
-
-
 /* =========================
-ADD MESSAGE
+   ADD CHAT MESSAGE
 ========================= */
 
 function addMessage(text, type) {
+    const messageElement = document.createElement("div");
+    messageElement.className = `message ${type}`;
 
-const message = document.createElement("div");
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
 
-message.className = `message ${type}`;
+    if (type === "assistant") {
+        bubble.innerHTML = marked.parse(text || "");
+    } else {
+        bubble.textContent = text;
+    }
 
+    messageElement.appendChild(bubble);
+    messages.appendChild(messageElement);
 
-const bubble = document.createElement("div");
+    messages.scrollTop = messages.scrollHeight;
 
-bubble.className = "bubble";
-
-
-if (type === "assistant") {
-
-    bubble.innerHTML = marked.parse(text);
-
-} else {
-
-    bubble.textContent = text;
-
+    return bubble;
 }
-
-
-message.appendChild(bubble);
-
-messages.appendChild(message);
-
-
-messages.scrollTop = messages.scrollHeight;
-
-
-return bubble;
-
-}
-
-
-
 
 /* =========================
-SEND MESSAGE
+   SEND MESSAGE
 ========================= */
 
 async function sendMessage() {
-
-const message = messageInput.value.trim();
-
-const file = fileInput.files[0];
-
-
-/*
-    Nothing to send
-*/
-
-if (!message && !file) {
-
-    return;
-
-}
-
-
-/*
-    Show user's message
-*/
-
-let displayMessage = message;
-
-
-if (file) {
-
-    if (displayMessage) {
-
-        displayMessage += `\n📎 ${file.name}`;
-
-    } else {
-
-        displayMessage = `📎 ${file.name}`;
-
+    if (isSending) {
+        return;
     }
 
-}
+    const message = messageInput.value.trim();
+    const files = [...selectedFiles];
 
+    if (!message && files.length === 0) {
+        return;
+    }
 
-addMessage(displayMessage, "user");
+    isSending = true;
 
+    // Display the user's message and all attachments.
+    let displayMessage = message;
 
-/*
-    Clear text box
-*/
+    if (files.length > 0) {
+        const attachments = files
+            .map(file => `📎 ${file.name}`)
+            .join("\n");
 
-messageInput.value = "";
+        displayMessage = displayMessage
+            ? `${displayMessage}\n${attachments}`
+            : attachments;
+    }
 
+    addMessage(displayMessage, "user");
 
-/*
-    Show loading
-*/
+    messageInput.value = "";
+    loading.classList.remove("hidden");
+    uploadStatus.textContent = "";
 
-loading.classList.remove("hidden");
+    // Create the multipart request.
+    const formData = new FormData();
+    formData.append("message", message);
 
+    for (const file of files) {
+        formData.append("files", file);
+    }
 
-/*
-    Create multipart request
-*/
-
-const formData = new FormData();
-
-
-formData.append(
-    "message",
-    message
-);
-
-
-if (file) {
-
-    formData.append(
-        "file",
-        file
+    console.log(
+        "Files being sent:",
+        formData.getAll("files").map(file => file.name)
     );
 
-}
-
-
-try {
-
-    /*
-        Send request to FastAPI
-    */
-
-    const response = await fetch(
-        "/chat",
-        {
+    try {
+        const response = await fetch("/chat", {
             method: "POST",
             body: formData
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+
+            throw new Error(
+                errorText || `Request failed: ${response.status}`
+            );
         }
-    );
 
+        const assistantBubble = addMessage("", "assistant");
 
-    /*
-        Handle error
-    */
+        if (response.body) {
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
 
-    if (!response.ok) {
+            let fullResponse = "";
 
-        const errorText =
-            await response.text();
+            while (true) {
+                const { value, done } = await reader.read();
 
-        throw new Error(errorText);
+                if (done) {
+                    break;
+                }
 
-    }
+                fullResponse += decoder.decode(value, {
+                    stream: true
+                });
 
+                assistantBubble.innerHTML = marked.parse(fullResponse);
+                messages.scrollTop = messages.scrollHeight;
+            }
 
-    /*
-        Create assistant message
-    */
+            fullResponse += decoder.decode();
+            assistantBubble.innerHTML = marked.parse(fullResponse);
+        } else {
+            assistantBubble.textContent = await response.text();
+        }
 
-    const assistantBubble =
+        messages.scrollTop = messages.scrollHeight;
+
+        // Clear files after a successful request.
+        removeFile();
+
+    } catch (error) {
+        console.error("Chat error:", error);
+
         addMessage(
-            "",
+            "Sorry, something went wrong while processing your request.",
             "assistant"
         );
 
+        uploadStatus.textContent =
+            "Request failed. Your selected files are still available to retry.";
 
-    /*
-        Read streaming response
-    */
-
-    const reader =
-        response.body.getReader();
-
-
-    const decoder =
-        new TextDecoder();
-
-
-    let fullResponse = "";
-
-
-    while (true) {
-
-        const {
-            value,
-            done
-        } = await reader.read();
-
-
-        if (done) {
-
-            break;
-
-        }
-
-
-        const text =
-            decoder.decode(value);
-
-
-        fullResponse += text;
-
-
-        /*
-            Convert Markdown → HTML
-        */
-
-        assistantBubble.innerHTML =
-            marked.parse(fullResponse);
-
-
-        /*
-            Keep chat scrolled
-        */
-
-        messages.scrollTop =
-            messages.scrollHeight;
-
+    } finally {
+        loading.classList.add("hidden");
+        isSending = false;
+        messageInput.focus();
     }
-
-
-    /*
-        Clear selected file
-        after successful request
-    */
-
-    removeFile();
-
-
-} catch (error) {
-
-    console.error(
-        "Chat error:",
-        error
-    );
-
-
-    addMessage(
-        "Sorry, something went wrong.",
-        "assistant"
-    );
-
-
-} finally {
-
-    loading.classList.add("hidden");
-
 }
-
-}
-
-
-
 
 /* =========================
-ENTER TO SEND
+   ENTER TO SEND
 ========================= */
 
-messageInput.addEventListener(
-"keydown",
-function (event) {
-
-    /*
-        Enter = send
-        Shift + Enter = new line
-    */
-
+messageInput.addEventListener("keydown", function (event) {
     if (
         event.key === "Enter" &&
-        !event.shiftKey
+        !event.shiftKey &&
+        !event.isComposing
     ) {
-
         event.preventDefault();
-
         sendMessage();
-
     }
-
-}
-
-);
+});
